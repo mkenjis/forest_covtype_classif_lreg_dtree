@@ -1,0 +1,121 @@
+
+val rdd = sc.textFile("covtype/covtype.csv").map(x => x.split(",").map( y => y.toDouble))
+
+val categories = rdd.map( x => {
+   val arr_size = x.size - 1
+   x(arr_size) }).distinct.zipWithIndex.collect.toMap
+   
+import org.apache.spark.mllib.linalg.Vectors
+import org.apache.spark.mllib.regression.LabeledPoint
+
+val data = rdd.map( x => {
+   val arr_size = x.size - 1
+   val l = categories(x(arr_size))
+   val f = x.slice(0,arr_size)
+   LabeledPoint(l, Vectors.dense(f))
+ })
+
+val sets = data.randomSplit(Array(0.7,0.3))
+val trainSet = sets(0)
+val testSet = sets(1)
+
+
+---- MLlib Maive Bayes regression --------------
+
+import org.apache.spark.mllib.classification.NaiveBayes
+val model = NaiveBayes.train(trainSet)
+
+20/09/02 17:46:07 WARN ObjectStore: Failed to get database global_temp, returning NoSuchObjectException
+20/09/02 17:46:11 WARN BLAS: Failed to load implementation from: com.github.fommil.netlib.NativeSystemBLAS
+20/09/02 17:46:11 WARN BLAS: Failed to load implementation from: com.github.fommil.netlib.NativeRefBLAS
+20/09/02 17:46:11 ERROR Executor: Exception in task 0.0 in stage 7.0 (TID 11)
+java.lang.IllegalArgumentException: requirement failed: Naive Bayes requires nonnegative feature values but found [2590.0,56.0,2.0,212.0,-6.0,390.0,220.0,235.0,151.0,6225.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0].
+
+
+---- MLlib MultiClass logistic regression --------------
+
+import org.apache.spark.mllib.classification.{LogisticRegressionModel, LogisticRegressionWithLBFGS}
+val numIterations = 100
+val model = new LogisticRegressionWithLBFGS().setNumClasses(7).run(trainSet)
+
+val validPredicts = testSet.map(x => (model.predict(x.features),x.label))
+
+validPredicts.take(20)
+res9: Array[(Double, Double)] = Array((3.0,0.0), (3.0,3.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,3.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,3.0), (3.0,0.0), (3.0,2.0), (3.0,2.0), (3.0,0.0))
+
+import org.apache.spark.mllib.evaluation.MulticlassMetrics
+val metrics = new MulticlassMetrics(validPredicts)
+validPredicts.filter(x => x._1 == x._2).count  // 124282
+validPredicts.count                            // 173833
+val accuracy = metrics.accuracy   // 0.714950555993396
+
+scala> metrics.confusionMatrix
+res12: org.apache.spark.mllib.linalg.Matrix =
+37.0  184.0   32.0     2483.0   14.0   0.0     0.0
+2.0   8543.0  0.0      1208.0   702.0  0.0     235.0
+4.0   32.0    44035.0  18220.0  4.0    1291.0  0.0
+96.0  1547.0  15048.0  67520.0  331.0  201.0   4.0
+0.0   2707.0  3.0      1620.0   713.0  0.0     46.0
+0.0   28.0    2895.0   56.0     0.0    3174.0  0.0
+0.0   483.0   0.0      1.0      74.0   0.0     260.0
+
+---- Standardizing the features --------------
+
+import org.apache.spark.mllib.feature.StandardScaler
+val scaler = new StandardScaler(true, false).fit(trainSet.map(x => x.features))
+
+import org.apache.spark.mllib.classification.{LogisticRegressionModel, LogisticRegressionWithLBFGS}
+val numIterations = 100
+val model = new LogisticRegressionWithLBFGS().setNumClasses(7).run(trainScaled)
+
+val validPredicts = testSet.map(x => (model.predict(x.features),x.label))
+
+validPredicts.take(20)
+res13: Array[(Double, Double)] = Array((3.0,0.0), (3.0,3.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,3.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,0.0), (3.0,3.0), (3.0,0.0), (3.0,2.0), (3.0,2.0), (3.0,0.0))
+
+import org.apache.spark.mllib.evaluation.MulticlassMetrics
+val metrics = new MulticlassMetrics(validPredicts)
+validPredicts.filter(x => x._1 == x._2).count  // 125790
+validPredicts.count                            // 173833
+val accuracy = metrics.accuracy   // 0.7236255486587702
+
+scala> metrics.confusionMatrix
+res16: org.apache.spark.mllib.linalg.Matrix =
+7.0   88.0    10.0     2641.0   4.0     0.0     0.0
+4.0   8401.0  0.0      872.0    1094.0  0.0     319.0
+0.0   15.0    44975.0  17465.0  15.0    1115.0  1.0
+62.0  1212.0  15657.0  67358.0  396.0   57.0    5.0
+27.0  2314.0  0.0      1314.0   1388.0  0.0     46.0
+0.0   16.0    2715.0   47.0     0.0     3375.0  0.0
+0.0   395.0   0.0      3.0      134.0   0.0     286.0
+
+
+-----------------------------
+
+import org.apache.spark.mllib.tree.DecisionTree
+import org.apache.spark.mllib.tree.model.DecisionTreeModel
+
+val categoricalFeaturesInfo = Map[Int, Int]()
+
+val model = DecisionTree.trainClassifier(trainSet, 7, categoricalFeaturesInfo, "gini", 30, 32)
+
+val validPredicts = testSet.map(x => (model.predict(x.features),x.label))
+
+scala> validPredicts.take(20)
+res17: Array[(Double, Double)] = Array((0.0,0.0), (3.0,3.0), (0.0,0.0), (3.0,0.0), (3.0,0.0), (0.0,0.0), (0.0,0.0), (0.0,0.0), (3.0,3.0), (0.0,0.0), (0.0,0.0), (0.0,0.0), (0.0,0.0), (0.0,0.0), (2.0,0.0), (3.0,3.0), (0.0,0.0), (3.0,2.0), (0.0,2.0), (3.0,0.0))
+
+import org.apache.spark.mllib.evaluation.MulticlassMetrics
+val metrics = new MulticlassMetrics(validPredicts)
+validPredicts.filter(x => x._1 == x._2).count  // 161603
+validPredicts.count                            // 173833
+val accuracy = metrics.accuracy   // 0.9296451191660962
+
+scala> metrics.confusionMatrix
+res20: org.apache.spark.mllib.linalg.Matrix =
+2209.0  34.0    61.0     440.0    6.0     0.0     0.0
+27.0    9810.0  2.0      252.0    497.0   0.0     102.0
+72.0    8.0     59063.0  4073.0   10.0    360.0   0.0
+420.0   233.0   4127.0   79705.0  209.0   49.0    4.0
+25.0    451.0   7.0      195.0    4373.0  0.0     38.0
+3.0     0.0     329.0    49.0     0.0     5772.0  0.0
+0.0     102.0   0.0      5.0      40.0    0.0     671.0
