@@ -1,5 +1,7 @@
 # forest_covtype_classif_lreg_dtree
 forest covtype classif using MLlib lreg and dtree
+- Source : Kaggle Dataset
+- URL : https://www.kaggle.com/abdullahahmedattahir/covtype
 
 # Purpose:
 - use covtype dataset to train linear regression and decision tree models.
