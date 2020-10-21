@@ -1,3 +1,4 @@
+---- Feature extraction & Data Munging --------------
 
 val rdd = sc.textFile("covtype/covtype.csv").map(x => x.split(",").map( y => y.toDouble))
 
@@ -76,6 +77,8 @@ val scaler = new StandardScaler(true, false).fit(trainSet.map(x => x.features))
 val trainScaled = trainSet.map(x => LabeledPoint(x.label,scaler.transform(x.features)))
 trainScaled.cache
 
+----- with MLlib Multiclass logistic regression ----------------------
+
 import org.apache.spark.mllib.classification.{LogisticRegressionModel, LogisticRegressionWithLBFGS}
 val numIterations = 100
 val model = new LogisticRegressionWithLBFGS().setNumClasses(7).run(trainScaled)
@@ -102,7 +105,7 @@ res13: org.apache.spark.mllib.linalg.Matrix =
 0.0   527.0   0.0      1.0      86.0   0.0     208.0
 
 
------------------------------
+----- with MLlib Decision tree regression ----------------------
 
 import org.apache.spark.mllib.tree.DecisionTree
 import org.apache.spark.mllib.tree.model.DecisionTreeModel
